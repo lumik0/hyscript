@@ -21,7 +21,6 @@ repositories {
 }
 
 dependencies {
-    // Твой сервер
     compileOnly(files("libs/HytaleServer.jar"))
 
     implementation(kotlin("stdlib"))
@@ -40,7 +39,6 @@ tasks {
     shadowJar {
         archiveClassifier.set("")
 
-        // Это склеивает служебные файлы GraalVM, чтобы он видел движок JS внутри JAR
         mergeServiceFiles()
 
         manifest {

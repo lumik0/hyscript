@@ -1,4 +1,4 @@
-package me.euaek
+package me.euaek.api
 
 import com.hypixel.hytale.server.core.command.system.AbstractCommand
 import com.hypixel.hytale.server.core.command.system.CommandContext
@@ -10,13 +10,16 @@ import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.hypixel.hytale.component.Ref
 import com.hypixel.hytale.component.Store
+import me.euaek.Plugin
 import org.graalvm.polyglot.Value
-import org.graalvm.polyglot.HostAccess
 import java.util.concurrent.CompletableFuture
 
 class CommandApi(private val plugin: Plugin) {
-    private val logger = plugin.logger
     private val commands = mutableListOf<AbstractCommand>()
+
+    fun reload(){
+        commands.clear()
+    }
 
     fun addCommand(config: Value) {
         val cmd = parseCommand(config)
@@ -24,24 +27,27 @@ class CommandApi(private val plugin: Plugin) {
             if(!commands.contains(cmd))
                 commands.add(cmd)
             plugin.commandRegistry.registerCommand(cmd)
-            logger.atInfo().log("✅ [Hyscript] Registered command: ${cmd.name}")
+            plugin.info("✅ [Hyscript] Registered command: ${cmd.name}")
         }
     }
 
     private fun parseCommand(config: Value): AbstractCommand? {
+        val type = config.getMember("type")?.asString() ?: "default"
         val name = config.getMember("name")?.asString() ?: return null
         val desc = config.getMember("description")?.asString() ?: ""
-        val type = config.getMember("type")?.asString() ?: "default"
+        val requiresConfirmation = config.getMember("requiresConfirmation")?.asBoolean() ?: false
 
         val cmd = when(type) {
             "collection" -> object : AbstractCommandCollection(name, desc) {}
-            "player" -> object : AbstractPlayerCommand(name, desc) {
+            "player" -> object : AbstractPlayerCommand(name, desc, requiresConfirmation) {
                 override fun execute(context: CommandContext, store: Store<EntityStore>, ref: Ref<EntityStore>, playerRef: PlayerRef, world: World) {
+                    if(!commands.contains(this)) return
                     config.getMember("execute").execute(context, store, ref, playerRef, world)
                 }
             }
-            else -> object : AbstractAsyncCommand(name, desc) {
+            else -> object : AbstractAsyncCommand(name, desc, requiresConfirmation) {
                 override fun executeAsync(context: CommandContext): CompletableFuture<Void> {
+                    if(!commands.contains(this)) CompletableFuture.runAsync {}
                     return CompletableFuture.runAsync {
                         config.getMember("execute").execute(context)
                     }
@@ -64,10 +70,6 @@ class CommandApi(private val plugin: Plugin) {
         if(subs != null && subs.hasMembers()) {
             for(key in subs.memberKeys) {
                 val subConfig = subs.getMember(key)
-                if(!subConfig.hasMember("name")) {
-                    // Временно "инжектим" имя, если его нет
-                    // (в реальной реализации лучше передать name в parseCommand)
-                }
                 val subCmd = parseCommand(subConfig)
                 if(subCmd != null) cmd.addSubCommand(subCmd)
             }

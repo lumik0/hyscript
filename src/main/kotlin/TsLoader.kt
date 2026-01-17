@@ -1,7 +1,8 @@
 package me.euaek
 
-import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandContext
+import com.hypixel.hytale.server.core.universe.Universe
+import com.hypixel.hytale.server.core.universe.world.World
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.HostAccess
 import org.graalvm.polyglot.Source
@@ -44,7 +45,7 @@ class TsLoader(private val plugin: Plugin) {
     fun reload(context: CommandContext? = null) {
         val cfg = plugin.configManager.current
         if(cfg.typescript) {
-            checkTranspilers()
+            checkTranspilers(context)
         }
         val list = load(context)
         if(cfg.isHotReloadEnabled) {
@@ -52,7 +53,7 @@ class TsLoader(private val plugin: Plugin) {
         }
     }
 
-    private fun checkTranspilers() {
+    private fun checkTranspilers(ctx: CommandContext? = null) {
         val bunPath = findCommandPath("bun")
         if(bunPath != null) {
             transpilerPath = bunPath
@@ -66,9 +67,9 @@ class TsLoader(private val plugin: Plugin) {
         }
 
         if(transpiler != TranspilerType.NONE) {
-            logger.atInfo().log("🚀 [Hyscript] Using $transpiler for TypeScript support ($transpilerPath)")
+            plugin.info("🚀 [Hyscript] Using $transpiler for TypeScript support ($transpilerPath)", ctx)
         } else {
-            logger.atWarning().log("⚠️ [Hyscript] No TS transpiler found (Bun/esbuild). .ts files will be ignored.")
+            plugin.warning("⚠️ [Hyscript] No TS transpiler found (Bun/esbuild). .ts files will be ignored", ctx)
         }
     }
     private fun findCommandPath(cmd: String): String? {
@@ -83,7 +84,7 @@ class TsLoader(private val plugin: Plugin) {
             null
         }
     }
-    private fun transpileTs(file: File): String? {
+    private fun transpileTs(file: File, ctx: CommandContext? = null): String? {
         val path = transpilerPath ?: return null
         val isWin = System.getProperty("os.name").contains("Win")
 
@@ -93,6 +94,7 @@ class TsLoader(private val plugin: Plugin) {
                 "build",
                 file.absolutePath,
                 "--minify",
+                "--bundle",
                 "--target", "browser"
             )
             TranspilerType.ESBUILD -> listOf(
@@ -121,22 +123,26 @@ class TsLoader(private val plugin: Plugin) {
             process.waitFor()
 
             if(process.exitValue() != 0) {
-                logger.atSevere().log("❌ [Hyscript] Transpile Error ($transpiler): $error")
+                plugin.severe("❌ [Hyscript] Transpile Error ($transpiler): $error", ctx)
                 return null
             }
             return result
         } catch(e: Exception) {
-            logger.atSevere().log("❌ [Hyscript] Failed to execute $transpiler at $path: ${e.message}")
+            plugin.severe("❌ [Hyscript] Failed to execute $transpiler at $path: ${e.message}", ctx)
             return null
         }
     }
 
     private fun load(ctx: CommandContext? = null) {
         try {
+            plugin.serverApi.reload()
+
             context?.close()
 
-            // 0. Creating context
+            // 1. Creating context
             val hostAccess = HostAccess.newBuilder(HostAccess.ALL)
+                .allowAccessAnnotatedBy(HostAccess.Export::class.java)
+                .allowPublicAccess(true)
                 .targetTypeMapping(
                     java.util.UUID::class.java,
                     String::class.java,
@@ -150,10 +156,7 @@ class TsLoader(private val plugin: Plugin) {
                 .allowHostClassLookup { true }
                 .build()
 
-            // 0. Reload serverApi
-            plugin.serverApi.reload()
-
-            // 1. API
+            // 2. API
             context?.getBindings("js")?.let { bindings ->
                 bindings.putMember("console", object {
                     fun log(msg: String) = logger.atInfo().log("[JS] $msg")
@@ -164,48 +167,54 @@ class TsLoader(private val plugin: Plugin) {
                 bindings.putMember("__nativeServer", plugin.serverApi)
                 bindings.putMember("server", plugin.serverApi)
 
+                // Component
+                bindings.putMember("TransformComponent", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.modules.entity.component.TransformComponent')"))
+
+                // ECS
+                bindings.putMember("Query", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.Query')"))
+
+                // Event (ECS)
+                bindings.putMember("BreakBlockEvent", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent')"))
+
                 // Math
                 bindings.putMember("Vector3d", context?.eval("js", "Java.type('com.hypixel.hytale.math.vector.Vector3d')"))
                 bindings.putMember("Axis", context?.eval("js", "Java.type('com.hypixel.hytale.math.Axis')"))
                 bindings.putMember("Transform", context?.eval("js", "Java.type('com.hypixel.hytale.math.vector.Transform')"))
 
                 // Hytale
+                bindings.putMember("universe", Universe.get())
+                bindings.putMember("World", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.world.World')"))
                 bindings.putMember("Message", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.Message')"))
                 bindings.putMember("EventTitleUtil", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.util.EventTitleUtil')"))
-                bindings.putMember("World", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.Message')"))
                 bindings.putMember("PlayerRef", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.PlayerRef')"))
             }
 
-            // 2. Loading SDK from resources
+            // 3. Loading SDK from resources
             val sdkStream = javaClass.getResourceAsStream("/sdk/dist/main.js")
             if(sdkStream != null) {
                 val sdkSource = sdkStream.bufferedReader().use { it.readText() }
                 context?.eval(Source.newBuilder("js", sdkSource, "sdk-main.js").build())
             } else {
-                ctx?.sendMessage(Message.raw("❌ [Hyscript] SDK NOT FOUND IN RESOURCES!"))
-                logger.atSevere().log("❌ [Hyscript] SDK NOT FOUND IN RESOURCES!")
+                plugin.severe("❌ [Hyscript] SDK NOT FOUND IN RESOURCES!", ctx)
                 throw Error("SDK not found")
             }
 
-            // 3. Loading Scripts
+            // 4. Loading Scripts
             scriptsDir.listFiles {_, name ->
                 (name.endsWith(".js") || name.endsWith(".ts")) && !name.startsWith("~")
             }?.forEach {file ->
                 try {
-                    val code = if(file.extension == "ts") transpileTs(file) else file.readText()
+                    val code = if(file.extension == "ts") transpileTs(file, ctx) else file.readText()
                     if(code != null) {
                         context?.eval(Source.newBuilder("js", code, file.name).build())
-                        ctx?.sendMessage(Message.raw("✅ [Hyscript] Loaded: ${file.name}"))
-                        logger.atInfo().log("✅ [Hyscript] Loaded: ${file.name}")
+                        plugin.info("✅ [Hyscript] Loaded: ${file.name}", ctx)
                     }
                 } catch(e: Exception) {
-                    ctx?.sendMessage(Message.raw("❌ [Hyscript] Error in ${file.name}: ${e.message}"))
-                    logger.atSevere().log("❌ [Hyscript] Error in ${file.name}: ${e.message}")
+                    plugin.severe("❌ [Hyscript] Error in ${file.name}: ${e.message}", ctx)
                 }
             }
         } catch(e: Exception) {
-            ctx?.sendMessage(Message.raw("❌ [Hyscript] Critical Runtime Error: ${e.message}"))
-            logger.atSevere().log("❌ [Hyscript] Critical Runtime Error: ${e.message}")
+            plugin.severe("❌ [Hyscript] Critical Runtime Error: ${e.message}", ctx)
             e.printStackTrace()
         }
     }
@@ -218,7 +227,7 @@ class TsLoader(private val plugin: Plugin) {
 
             while(true) {
                 if(!plugin.configManager.current.isHotReloadEnabled) {
-                    logger.atInfo().log("🔌 [Hyscript] Hot Reload disabled, stopping watcher...")
+                    plugin.info("🔌 [Hyscript] Hot Reload disabled, stopping watcher...")
                     break
                 }
 
@@ -232,7 +241,7 @@ class TsLoader(private val plugin: Plugin) {
 
                 if(shouldReload) {
                     Thread.sleep(150)
-                    logger.atInfo().log("🔄 [Hyscript] Changes detected, reloading engine...")
+                    plugin.info("🔄 [Hyscript] Changes detected, reloading engine...")
                     load()
                 }
 

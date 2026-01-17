@@ -1,5 +1,10 @@
 package me.euaek
 
+import com.hypixel.hytale.component.query.Query
+import com.hypixel.hytale.component.system.RefChangeSystem
+import com.hypixel.hytale.component.system.tick.EntityTickingSystem
+import com.hypixel.hytale.server.core.Message
+import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent
@@ -7,6 +12,9 @@ import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
+import com.hypixel.hytale.server.core.universe.Universe
+import com.hypixel.hytale.server.npc.systems.BlackboardSystems.BreakBlockEventSystem
+import me.euaek.api.ServerApi
 import me.euaek.commands.HyscriptCommand
 import java.io.File
 import javax.annotation.Nonnull
@@ -44,6 +52,28 @@ class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
         logger.atInfo().log("Plugin shutting down!")
     }
 
+    fun info(log: String, context: CommandContext? = null){
+        if(context != null){
+            context.sendMessage(Message.raw(log))
+        } else {
+            logger.atInfo().log(log)
+        }
+    }
+    fun warning(log: String, context: CommandContext? = null){
+        if(context != null){
+            context.sendMessage(Message.raw(log).color("yellow"))
+        } else {
+            logger.atWarning().log(log)
+        }
+    }
+    fun severe(log: String, context: CommandContext? = null){
+        if(context != null){
+            context.sendMessage(Message.raw(log).color("red"))
+        } else {
+            logger.atSevere().log(log)
+        }
+    }
+
     fun callSync(name: String, vararg args: Any){
         try {
             tsLoader.server?.invokeMember("callSync", name, *args)
@@ -54,25 +84,25 @@ class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
     private fun registerEvents(){
         eventRegistry.register(PlayerConnectEvent::class.java) { e ->
             callSync("playerConnect", mutableMapOf(
-                "player" to e.playerRef,
+                "playerRef" to e.playerRef,
                 "world" to e.world
             ))
         }
         eventRegistry.register(PlayerDisconnectEvent::class.java) { e ->
             callSync("playerDisconnect", mutableMapOf(
-                "player" to e.playerRef,
+                "playerRef" to e.playerRef,
                 "reason" to e.disconnectReason
             ))
         }
         eventRegistry.register(PlayerReadyEvent::class.java) { e ->
             callSync("playerReady", mutableMapOf(
-                "player" to e.playerRef,
+                "playerRef" to e.playerRef,
                 "readyId" to e.readyId
             ))
         }
         eventRegistry.register(PlayerMouseButtonEvent::class.java) { e ->
             val data = mutableMapOf(
-                "player" to e.playerRef,
+                "playerRef" to e.playerRef,
                 "clientUseTime" to e.clientUseTime,
                 "itemInHand" to e.itemInHand,
                 "targetBlock" to e.targetBlock,
