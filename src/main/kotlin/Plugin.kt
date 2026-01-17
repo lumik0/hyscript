@@ -1,0 +1,99 @@
+package me.euaek
+
+import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent
+import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent
+import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent
+import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent
+import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.plugin.JavaPluginInit
+import me.euaek.commands.HyscriptCommand
+import java.io.File
+import javax.annotation.Nonnull
+
+class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
+    companion object {
+        lateinit var instance: Plugin
+    }
+
+    lateinit var serverApi: ServerApi
+    lateinit var configManager: ConfigManager
+    lateinit var tsLoader: TsLoader
+
+    override fun setup() {
+        instance = this
+
+        serverApi = ServerApi(this)
+
+        configManager = ConfigManager(this, File(dataDirectory.toFile(), "config.json"))
+        configManager.load()
+
+        tsLoader = TsLoader(this)
+        tsLoader.setup()
+
+        commandRegistry.registerCommand(HyscriptCommand())
+
+        registerEvents();
+    }
+
+    override fun start() {
+        logger.atInfo().log("Plugin started!")
+    }
+
+    override fun shutdown() {
+        logger.atInfo().log("Plugin shutting down!")
+    }
+
+    fun callSync(name: String, vararg args: Any){
+        try {
+            tsLoader.server?.invokeMember("callSync", name, *args)
+        } catch(e: Exception){
+            logger.atSevere().log("❌ [Hyscript] Error: "+e.message)
+        }
+    }
+    private fun registerEvents(){
+        eventRegistry.register(PlayerConnectEvent::class.java) { e ->
+            callSync("playerConnect", mutableMapOf(
+                "player" to e.playerRef,
+                "world" to e.world
+            ))
+        }
+        eventRegistry.register(PlayerDisconnectEvent::class.java) { e ->
+            callSync("playerDisconnect", mutableMapOf(
+                "player" to e.playerRef,
+                "reason" to e.disconnectReason
+            ))
+        }
+        eventRegistry.register(PlayerReadyEvent::class.java) { e ->
+            callSync("playerReady", mutableMapOf(
+                "player" to e.playerRef,
+                "readyId" to e.readyId
+            ))
+        }
+        eventRegistry.register(PlayerMouseButtonEvent::class.java) { e ->
+            val data = mutableMapOf(
+                "player" to e.playerRef,
+                "clientUseTime" to e.clientUseTime,
+                "itemInHand" to e.itemInHand,
+                "targetBlock" to e.targetBlock,
+                "targetEntity" to e.targetEntity,
+                "screenPoint" to e.screenPoint,
+                "mouseButton" to e.mouseButton,
+                "isCancelled" to false
+            )
+            callSync("playerMouseButton", data)
+            if(data["isCancelled"] == true) e.isCancelled = true
+        }
+        eventRegistry.register(PlayerChatEvent::class.java) { e ->
+            val data = mutableMapOf(
+                "sender" to e.sender,
+                "content" to e.content,
+                "formatter" to e.formatter,
+                "targets" to e.targets,
+                "isCancelled" to false
+            )
+            callSync("playerChat", data)
+            if(data["isCancelled"] == true) e.isCancelled = true
+        }
+    }
+}

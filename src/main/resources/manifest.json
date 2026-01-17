@@ -1,0 +1,12 @@
+{
+  "Group": "me.euaek",
+  "Name": "HyScript",
+  "Version": "1.0.0",
+  "Description": "HyScript",
+  "Main": "me.euaek.Plugin",
+  "ServerVersion": "*",
+  "Dependencies": {},
+  "OptionalDependencies": {},
+  "DisabledByDefault": false,
+  "IncludesAssetPack": true
+}
