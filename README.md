@@ -4,8 +4,7 @@
 
 **HyScript** is a dedicated scripting solution for Hytale, designed to make server-side development fast and accessible. It allows server owners and developers to create complex gameplay logic, custom mini-games, and automation tools using JavaScript or TypeScript, eliminating the need for complex modding setups and long compilation times.
 
-## **🚀 Key Features  
-**
+## 🚀 Key Features
 
 *   **Hot Reloading:** Scripts update instantly upon saving. No server restarts required - apply changes to your world in real-time.
 *   **Full Module Support:** Native ESM support. Use `import` and `export` to organize your scripts into clean, reusable modules.
