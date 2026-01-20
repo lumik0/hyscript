@@ -1,14 +1,38 @@
 package me.euaek
 
+import com.hypixel.hytale.component.Component
+import com.hypixel.hytale.component.Ref
+import com.hypixel.hytale.component.query.Query
+import com.hypixel.hytale.protocol.GameMode
+import com.hypixel.hytale.protocol.Packet
+import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig
+import com.hypixel.hytale.server.core.asset.type.item.config.Item
+import com.hypixel.hytale.server.core.command.system.AbstractCommand
 import com.hypixel.hytale.server.core.command.system.CommandContext
+import com.hypixel.hytale.server.core.command.system.CommandSender
+import com.hypixel.hytale.server.core.command.system.arguments.system.Argument
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgumentType
+import com.hypixel.hytale.server.core.entity.Entity
+import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent
+import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent
+import com.hypixel.hytale.server.core.inventory.Inventory
+import com.hypixel.hytale.server.core.inventory.ItemStack
+import com.hypixel.hytale.server.core.inventory.container.ItemContainer
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent
+import com.hypixel.hytale.server.core.modules.physics.component.Velocity
 import com.hypixel.hytale.server.core.universe.Universe
+import com.hypixel.hytale.server.core.universe.playerdata.PlayerStorage
 import com.hypixel.hytale.server.core.universe.world.World
+import com.hypixel.hytale.server.core.universe.world.WorldConfig
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
+import com.hypixel.hytale.server.core.util.NotificationUtil
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.HostAccess
 import org.graalvm.polyglot.Source
 import org.graalvm.polyglot.Value
 import java.io.File
 import java.nio.file.*
+import java.util.*
 import kotlin.concurrent.thread
 
 class TsLoader(private val plugin: Plugin) {
@@ -27,16 +51,37 @@ class TsLoader(private val plugin: Plugin) {
     val server: Value?
         get() = context?.getBindings("js")?.getMember("server")
 
+    private fun copyResources(resourcePath: String, targetDir: Path) {
+        if(!Files.exists(targetDir)) Files.createDirectories(targetDir)
+
+        val uri = plugin.javaClass.getResource(resourcePath)?.toURI() ?: return
+
+        val fileSystem = if(uri.scheme == "jar") {
+            try { FileSystems.getFileSystem(uri) }
+            catch(e: Exception) { FileSystems.newFileSystem(uri, Collections.emptyMap<String, Any>()) }
+        } else null
+
+        val sourcePath = fileSystem?.getPath(resourcePath) ?: Paths.get(uri)
+
+        Files.walk(sourcePath).forEach { path ->
+            val relative = sourcePath.relativize(path).toString()
+            if(relative.isEmpty()) return@forEach
+
+            val dest = targetDir.resolve(relative)
+            if(Files.isDirectory(path)) {
+                if(!Files.exists(dest)) Files.createDirectories(dest)
+            } else {//if(!Files.exists(dest)) {
+                Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+    }
+
     fun setup() {
         if(!scriptsDir.exists()) scriptsDir.mkdirs()
 
-        val res = "/sdk/declare/main.d.ts"
-        val dest = plugin.dataDirectory.resolve("sdk.d.ts")
-
-        if(!Files.exists(dest)) {
-            Files.createDirectories(dest.parent)
-            javaClass.getResourceAsStream(res)?.use { Files.copy(it, dest) }
-        }
+        copyResources("/sdk/declare", plugin.dataDirectory.resolve("sdk"))
+        if(plugin.configManager.isNew)
+            copyResources("/scripts", plugin.dataDirectory.resolve("scripts"))
 
         reload()
 
@@ -67,9 +112,9 @@ class TsLoader(private val plugin: Plugin) {
         }
 
         if(transpiler != TranspilerType.NONE) {
-            plugin.info("🚀 [Hyscript] Using $transpiler for TypeScript support ($transpilerPath)", ctx)
+            plugin.info("🚀 Using $transpiler for TypeScript support ($transpilerPath)", ctx)
         } else {
-            plugin.warning("⚠️ [Hyscript] No TS transpiler found (Bun/esbuild). .ts files will be ignored", ctx)
+            plugin.warning("⚠️ No TS transpiler found (Bun/esbuild). .ts files will be ignored", ctx)
         }
     }
     private fun findCommandPath(cmd: String): String? {
@@ -123,12 +168,12 @@ class TsLoader(private val plugin: Plugin) {
             process.waitFor()
 
             if(process.exitValue() != 0) {
-                plugin.severe("❌ [Hyscript] Transpile Error ($transpiler): $error", ctx)
+                plugin.severe("❌ Transpile Error ($transpiler): $error", ctx)
                 return null
             }
             return result
         } catch(e: Exception) {
-            plugin.severe("❌ [Hyscript] Failed to execute $transpiler at $path: ${e.message}", ctx)
+            plugin.severe("❌ Failed to execute $transpiler at $path: ${e.message}", ctx)
             return null
         }
     }
@@ -136,10 +181,9 @@ class TsLoader(private val plugin: Plugin) {
     private fun load(ctx: CommandContext? = null) {
         try {
             plugin.serverApi.reload()
-
             context?.close()
 
-            // 1. Creating context
+            // 1. context
             val hostAccess = HostAccess.newBuilder(HostAccess.ALL)
                 .allowAccessAnnotatedBy(HostAccess.Export::class.java)
                 .allowPublicAccess(true)
@@ -158,35 +202,81 @@ class TsLoader(private val plugin: Plugin) {
 
             // 2. API
             context?.getBindings("js")?.let { bindings ->
-                bindings.putMember("console", object {
-                    fun log(msg: String) = logger.atInfo().log("[JS] $msg")
-                    fun error(msg: String) = logger.atSevere().log("[JS] $msg")
-                    fun warn(msg: String) = logger.atWarning().log("[JS] $msg")
-                })
+//                bindings.putMember("console", object {
+//                    fun log(msg: String) = logger.atInfo().log("[JS] $msg")
+//                    fun error(msg: String) = logger.atSevere().log("[JS] $msg")
+//                    fun warn(msg: String) = logger.atWarning().log("[JS] $msg")
+//                })
+
                 bindings.putMember("plugin", plugin)
                 bindings.putMember("__nativeServer", plugin.serverApi)
                 bindings.putMember("server", plugin.serverApi)
-
-                // Component
-                bindings.putMember("TransformComponent", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.modules.entity.component.TransformComponent')"))
-
-                // ECS
-                bindings.putMember("Query", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.Query')"))
-
-                // Event (ECS)
-                bindings.putMember("BreakBlockEvent", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent')"))
-
-                // Math
-                bindings.putMember("Vector3d", context?.eval("js", "Java.type('com.hypixel.hytale.math.vector.Vector3d')"))
-                bindings.putMember("Axis", context?.eval("js", "Java.type('com.hypixel.hytale.math.Axis')"))
-                bindings.putMember("Transform", context?.eval("js", "Java.type('com.hypixel.hytale.math.vector.Transform')"))
-
-                // Hytale
                 bindings.putMember("universe", Universe.get())
+                bindings.putMember("Transform", context?.eval("js", "Java.type('com.hypixel.hytale.math.vector.Transform')"))
+                bindings.putMember("Component", context?.eval("js", "Java.type('com.hypixel.hytale.component.Component')"))
+                bindings.putMember("ComponentType", context?.eval("js", "Java.type('com.hypixel.hytale.component.ComponentType')"))
+                bindings.putMember("Ref", context?.eval("js", "Java.type('com.hypixel.hytale.component.Ref')"))
+                bindings.putMember("Holder", context?.eval("js", "Java.type('com.hypixel.hytale.component.Holder')"))
+                bindings.putMember("Store", context?.eval("js", "Java.type('com.hypixel.hytale.component.Store')"))
+                bindings.putMember("EntityStore", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.world.storage.EntityStore')"))
+                bindings.putMember("ComponentAccessor", context?.eval("js", "Java.type('com.hypixel.hytale.component.ComponentAccessor')"))
+                bindings.putMember("Query", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.Query')"))
+                bindings.putMember("NotQuery", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.NotQuery')"))
+                bindings.putMember("AndQuery", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.AndQuery')"))
+                bindings.putMember("OrQuery", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.OrQuery')"))
+                bindings.putMember("Archetype", context?.eval("js", "Java.type('com.hypixel.hytale.component.Archetype')"))
+                bindings.putMember("ExactArchetypeQuery", context?.eval("js", "Java.type('com.hypixel.hytale.component.query.ExactArchetypeQuery')"))
+                bindings.putMember("EcsEvent", context?.eval("js", "Java.type('com.hypixel.hytale.component.system.EcsEvent')"))
+                bindings.putMember("CancellableEcsEvent", context?.eval("js", "Java.type('com.hypixel.hytale.component.system.CancellableEcsEvent')"))
+                bindings.putMember("BreakBlockEvent", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent')"))
+                bindings.putMember("TransformComponent", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.modules.entity.component.TransformComponent')"))
+                bindings.putMember("Velocity", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.modules.physics.component.Velocity')"))
+                bindings.putMember("Teleport", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.modules.entity.teleport.Teleport')"))
+                bindings.putMember("CommandSender", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.command.system.CommandSender')"))
+                bindings.putMember("CommandContext", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.command.system.CommandContext')"))
+                bindings.putMember("ArgumentType", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.command.system.arguments.types.ArgumentType')"))
+                bindings.putMember("Argument", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.command.system.arguments.system.Argument')"))
+                bindings.putMember("RequiredArg", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg')"))
+                bindings.putMember("AbstractCommand", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.command.system.AbstractCommand')"))
+                bindings.putMember("Universe", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.Universe')"))
                 bindings.putMember("World", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.world.World')"))
+                bindings.putMember("PlayerStorage", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.playerdata.PlayerStorage')"))
+                bindings.putMember("Packet", context?.eval("js", "Java.type('com.hypixel.hytale.protocol.Packet')"))
                 bindings.putMember("Message", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.Message')"))
+                bindings.putMember("GameMode", context?.eval("js", "Java.type('com.hypixel.hytale.protocol.GameMode')"))
+                bindings.putMember("PacketHandler", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.io.PacketHandler')"))
                 bindings.putMember("EventTitleUtil", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.util.EventTitleUtil')"))
+                bindings.putMember("NotificationUtil", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.util.NotificationUtil')"))
+                bindings.putMember("WorldConfig", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.world.WorldConfig')"))
+                bindings.putMember("DeathConfig", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig')"))
                 bindings.putMember("PlayerRef", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.universe.PlayerRef')"))
+                bindings.putMember("Entity", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.entity.Entity')"))
+                bindings.putMember("LivingEntity", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.entity.LivingEntity')"))
+                bindings.putMember("Player", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.entity.entities.Player')"))
+                bindings.putMember("Item", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.asset.type.item.config.Item')"))
+                bindings.putMember("ItemStack", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.inventory.ItemStack')"))
+                bindings.putMember("Inventory", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.inventory.Inventory')"))
+                bindings.putMember("ItemContainer", context?.eval("js", "Java.type('com.hypixel.hytale.server.core.inventory.container.ItemContainer')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
+//                bindings.putMember("", context?.eval("js", "Java.type('')"))
             }
 
             // 3. Loading SDK from resources
@@ -195,7 +285,7 @@ class TsLoader(private val plugin: Plugin) {
                 val sdkSource = sdkStream.bufferedReader().use { it.readText() }
                 context?.eval(Source.newBuilder("js", sdkSource, "sdk-main.js").build())
             } else {
-                plugin.severe("❌ [Hyscript] SDK NOT FOUND IN RESOURCES!", ctx)
+                plugin.severe("❌ SDK NOT FOUND IN RESOURCES!", ctx)
                 throw Error("SDK not found")
             }
 
@@ -206,15 +296,34 @@ class TsLoader(private val plugin: Plugin) {
                 try {
                     val code = if(file.extension == "ts") transpileTs(file, ctx) else file.readText()
                     if(code != null) {
+                        context?.getBindings("js")?.let { bindings ->
+                            bindings.putMember("console", object {
+                                fun log(msg: Value) = logger.atInfo().log("[${file.name}] $msg")
+                                fun error(msg: Value) = logger.atSevere().log("[${file.name}] $msg")
+                                fun warn(msg: Value) = logger.atWarning().log("[${file.name}] $msg")
+                            })
+                        }
                         context?.eval(Source.newBuilder("js", code, file.name).build())
-                        plugin.info("✅ [Hyscript] Loaded: ${file.name}", ctx)
+                        plugin.info("✅ Loaded: ${file.name}", ctx)
                     }
                 } catch(e: Exception) {
-                    plugin.severe("❌ [Hyscript] Error in ${file.name}: ${e.message}", ctx)
+                    if(e is org.graalvm.polyglot.PolyglotException) {
+                        val location = e.sourceLocation
+                        val lineInfo = if(location == null) "unknown location" else "at ${location.startLine}:${location.startColumn}"
+
+                        plugin.severe("❌ Error in ${file.name} ($lineInfo):", ctx)
+                        plugin.severe("   > ${e.message}", ctx)
+
+                        e.polyglotStackTrace.forEach { frame ->
+                            plugin.severe("     at ${frame.rootName}(${frame.sourceLocation})", ctx)
+                        }
+                    } else {
+                        plugin.severe("❌ Unexpected error in ${file.name}: ${e.message}", ctx)
+                    }
                 }
             }
         } catch(e: Exception) {
-            plugin.severe("❌ [Hyscript] Critical Runtime Error: ${e.message}", ctx)
+            plugin.severe("❌ Critical Runtime Error: ${e.message}", ctx)
             e.printStackTrace()
         }
     }
@@ -227,7 +336,7 @@ class TsLoader(private val plugin: Plugin) {
 
             while(true) {
                 if(!plugin.configManager.current.isHotReloadEnabled) {
-                    plugin.info("🔌 [Hyscript] Hot Reload disabled, stopping watcher...")
+                    plugin.info("⭕ [Hyscript] Hot Reload disabled, stopping watcher...")
                     break
                 }
 

@@ -17,6 +17,7 @@ java {
 }
 
 repositories {
+    maven(url = "https://www.cursemaven.com")
     mavenCentral()
 }
 
@@ -24,6 +25,8 @@ dependencies {
     compileOnly(files("libs/HytaleServer.jar"))
 
     implementation(kotlin("stdlib"))
+
+    implementation("curse.maven:hyui-1431415:7479623")
 
     implementation("org.graalvm.polyglot:polyglot:23.1.2")
     implementation("org.graalvm.polyglot:js:23.1.2")
@@ -59,6 +62,24 @@ tasks.register<Copy>("deploy") {
     doLast {
         println("✅ Сборка завершена, плагин отправлен в mods!")
     }
+}
+
+tasks.register<JavaExec>("runServer") {
+    group = "hytale"
+    description = "Копирует плагин и запускает сервер Hytale"
+
+    dependsOn("deploy")
+
+    mainClass.set("-jar")
+    workingDir = file("E:/HSytale/Hyscript/server") // Папка, где лежит сервер
+
+    args("E:\\HSytale\\Hyscript\\libs\\HytaleServer.jar", "--assets", "../Assets.zip")
+
+    jvmArgs("-XX:+UnlockExperimentalVMOptions", "-XX:+EnableJVMCI", "-Dpolyglot.engine.WarnInterpreterOnly=false", "-Xmx4G", "-Xms2G")
+
+    standardInput = System.`in`
+    standardOutput = System.out
+    errorOutput = System.err
 }
 
 tasks.test {

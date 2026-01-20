@@ -1,8 +1,10 @@
 package me.euaek
 
+import au.ellie.hyui.builders.PageBuilder
 import com.hypixel.hytale.component.query.Query
 import com.hypixel.hytale.component.system.RefChangeSystem
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem
+import com.hypixel.hytale.protocol.packets.interface_.CustomUIEventBindingType
 import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent
@@ -50,6 +52,8 @@ class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun shutdown() {
         logger.atInfo().log("Plugin shutting down!")
+
+        serverApi.shutdown()
     }
 
     fun info(log: String, context: CommandContext? = null){
@@ -78,7 +82,20 @@ class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
         try {
             tsLoader.server?.invokeMember("callSync", name, *args)
         } catch(e: Exception){
-            logger.atSevere().log("❌ [Hyscript] Error: "+e.message)
+            if(e is org.graalvm.polyglot.PolyglotException) {
+                val location = e.sourceLocation
+                val position = if(location != null) " [Line ${location.startLine}, Col ${location.startColumn}]" else ""
+
+                logger.atSevere().log("❌ Script Error in '$name'$position: ${e.message}")
+
+                e.polyglotStackTrace.forEach {frame ->
+                    if(frame.isGuestFrame) {
+                        logger.atSevere().log("    at ${frame.rootName}(${frame.sourceLocation})")
+                    }
+                }
+            } else {
+                logger.atSevere().log("❌ Internal Error while calling '$name': ${e.message}")
+            }
         }
     }
     private fun registerEvents(){

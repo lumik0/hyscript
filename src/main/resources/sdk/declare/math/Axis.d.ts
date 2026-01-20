@@ -1,2 +1,6 @@
-export default class Axis {
+declare global {
+  class Axis {
+
+  }
 }
+export {}

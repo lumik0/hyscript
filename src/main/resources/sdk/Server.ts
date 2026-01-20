@@ -26,4 +26,18 @@ export default class Server extends Events {
   addEventSystem(type: string, eventClass: any, config: any) {
     return nativeServer.addEventSystem(type, eventClass, config);
   }
+  addComponentSystem(type: string, componentClass: any, config: any) {
+    return nativeServer.addComponentSystem(type, componentClass, config);
+  }
+
+  addAdapterInbound(callback: any) {
+    return nativeServer.addAdapterInbound(callback);
+  }
+  addAdapterOutbound(callback: any) {
+    return nativeServer.addAdapterOutbound(callback);
+  }
+
+  getPlayer(v: any) {
+    return nativeServer.getPlayer(v);
+  }
 }

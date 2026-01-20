@@ -2,7 +2,12 @@
   "Group": "me.euaek",
   "Name": "HyScript",
   "Version": "1.0.0",
-  "Description": "HyScript",
+  "Authors": [
+    {
+      "Name": "Euaek"
+    }
+  ],
+  "Description": "Powerful JavaScript/TypeScript scripting engine for Hytale servers",
   "Main": "me.euaek.Plugin",
   "ServerVersion": "*",
   "Dependencies": {},

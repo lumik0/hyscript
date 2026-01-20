@@ -1,4 +1,4 @@
-/// <reference path="../sdk.d.ts" />
+/// <reference path="../sdk/sdk.d.ts" />
 
 server.on('setup', () => {
   // This event is triggered only when the plugin is started

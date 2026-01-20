@@ -1,7 +1,9 @@
 package me.euaek.commands
 
+import au.ellie.hyui.builders.PageBuilder
 import com.hypixel.hytale.component.Ref
 import com.hypixel.hytale.component.Store
+import com.hypixel.hytale.protocol.packets.interface_.CustomUIEventBindingType
 import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractCommandCollection
@@ -39,6 +41,22 @@ class HyscriptCommand : AbstractCommandCollection("hyscript", "Hyscript") {
         override fun execute(context: CommandContext, store: Store<EntityStore>, ref: Ref<EntityStore>, playerRef: PlayerRef, world: World) {
             Plugin.instance.tsLoader.reload(context)
             context.sendMessage(Message.raw("Reloaded scripts"))
+
+//            val html = """
+//<div class="page-overlay">
+//    <div class="container" data-hyui-title="Settings">
+//        <p>Welcome to the menu!</p>
+//        <button id="myBtn">Click Me</button>
+//    </div>
+//</div>
+//"""
+//
+//            PageBuilder.detachedPage()
+//                .fromHtml(html)
+//                .addEventListener("myBtn", CustomUIEventBindingType.Activating) { ctx ->
+//                    playerRef.sendMessage(Message.raw("Clicked! $ctx"));
+//                }
+//                .open(playerRef, store);
         }
     }
 }

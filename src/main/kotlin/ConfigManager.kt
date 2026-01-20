@@ -11,10 +11,12 @@ data class Config(
 
 class ConfigManager(private val plugin: Plugin, private val configFile: File) {
     private val mapper = jacksonObjectMapper()
+    var isNew = false
     var current = Config()
 
     fun load() {
         if(!configFile.exists()) {
+            isNew = true
             save()
             return
         }

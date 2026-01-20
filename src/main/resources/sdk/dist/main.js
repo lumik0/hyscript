@@ -164,6 +164,18 @@ class Server extends Events {
   addEventSystem(type, eventClass, config) {
     return nativeServer.addEventSystem(type, eventClass, config);
   }
+  addComponentSystem(type, componentClass, config) {
+    return nativeServer.addComponentSystem(type, componentClass, config);
+  }
+  addAdapterInbound(callback) {
+    return nativeServer.addAdapterInbound(callback);
+  }
+  addAdapterOutbound(callback) {
+    return nativeServer.addAdapterOutbound(callback);
+  }
+  getPlayer(v) {
+    return nativeServer.getPlayer(v);
+  }
 }
 
 // src/main/resources/sdk/main.ts
