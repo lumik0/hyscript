@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "me.euaek"
-version = "1.0-SNAPSHOT"
+version = "1.0.1-SNAPSHOT"
 
 kotlin {
     jvmToolchain(21)
@@ -60,26 +60,9 @@ tasks.register<Copy>("deploy") {
     into("E:/HSytale/Hyscript/server/mods")
 
     doLast {
+        // thanks gemini
         println("✅ Сборка завершена, плагин отправлен в mods!")
     }
-}
-
-tasks.register<JavaExec>("runServer") {
-    group = "hytale"
-    description = "Копирует плагин и запускает сервер Hytale"
-
-    dependsOn("deploy")
-
-    mainClass.set("-jar")
-    workingDir = file("E:/HSytale/Hyscript/server") // Папка, где лежит сервер
-
-    args("E:\\HSytale\\Hyscript\\libs\\HytaleServer.jar", "--assets", "../Assets.zip")
-
-    jvmArgs("-XX:+UnlockExperimentalVMOptions", "-XX:+EnableJVMCI", "-Dpolyglot.engine.WarnInterpreterOnly=false", "-Xmx4G", "-Xms2G")
-
-    standardInput = System.`in`
-    standardOutput = System.out
-    errorOutput = System.err
 }
 
 tasks.test {
