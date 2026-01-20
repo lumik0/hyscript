@@ -12,3 +12,9 @@
 *   **Fluent Event API:** An intuitive, chainable API designed specifically for handling Hytale game events with ease.
 
 \[!NOTE\] **HyScript is currently under active development.** Some features are still being implemented. A collection of script examples and full documentation will be available soon
+
+### Documentation
+[<img height="20" src="images/english.png" width="35" />](DOCUMENTATION_EN.MD)
+[<img height="20" src="images/russian.png" width="35" />](DOCUMENTATION_RU.MD)
+
+Curseforge: https://www.curseforge.com/hytale/mods/hyscript
