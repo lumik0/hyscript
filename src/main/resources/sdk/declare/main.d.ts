@@ -319,45 +319,58 @@ declare global {
     getHeadRotation(): Vector3d | null // TODO: RENAME TO Vector3f!!!!
     isResetVelocity(): boolean
   }
+  type Predictable = 'NONE' | 'SELF' | 'ALL';
+  class EntityStatValue {
+    getId(): string
+    getIndex(): number
+    get(): number
+    asPercentage(): number
+    getMin(): number
+    getMax(): number
+    getIgnoreInvulnerability(): boolean
+  }
+  abstract class DefaultEntityStatTypes {
+    static HEALTH: number
+    static OXYGEN: number
+    static STAMINA: number
+    static MANA: number
+    static SIGNATURE_ENERGY: number
+    static AMMO: number
+    static getHealth(): number
+    static getOxygen(): number
+    static getStamina(): number
+    static getMana(): number
+    static getSignatureEnergy(): number
+    static getAmmo(): number
+  }
+  class EntityStatMap implements Component<EntityStore> {
+    clone(): Component<EntityStore>;
+    cloneSerializable(): Component<EntityStore>;
+    static getComponentType(): ComponentType<EntityStore, EntityStatMap>
+    size(): number
+    get(index: number): EntityStatValue | null
+    update(): void
+    // TODO: add Modifier
+    setStatValue(index: number, newValue: number): void
+    setStatValue(predictable: Predictable, index: number, newValue: number): void
+    addStatValue(index: number, amount: number): void
+    addStatValue(predictable: Predictable, index: number, amount: number): void
+    subtractStatValue(index: number, amount: number): void
+    subtractStatValue(predictable: Predictable, index: number, amount: number): void
+    minimizeStatValue(index: number): void
+    minimizeStatValue(predictable: Predictable, index: number): void
+    maximizeStatValue(index: number): void
+    maximizeStatValue(predictable: Predictable, index: number): void
+    resetStatValue(index: number): void
+    resetStatValue(predictable: Predictable, index: number): void
+    clearUpdates(): void
+    consumeSelfNetworkOutdated(): boolean
+    consumeNetworkOutdated(): boolean
+  }
 
   //
   // System
   //
-  interface SystemType {
-    ticking: {
-      query(): Query<EntityStore>
-      tick(dt: number, index: number, store: Store<EntityStore>): void
-    },
-    entityTicking: {
-      query(): Query<EntityStore>
-      // any >>> CommandBuffer<EntityStore>
-      tick(dt: number, index: number, archetypeChunk: ArchetypeChunk<EntityStore>, store: Store<EntityStore>, commandBuffer: any): void
-    },
-    delayedEntity: {
-      intervalSec: number
-      query(): Query<EntityStore>
-      tick(dt: number, index: number, archetypeChunk: ArchetypeChunk<EntityStore>, store: Store<EntityStore>, commandBuffer: any): void
-    }
-  }
-  interface SystemEventType<E extends EcsEvent> {
-    entityEvent: {
-      query(): Query<EntityStore>
-      // any >>> CommandBuffer<EntityStore>
-      handle(index: number, archetypeChunk: ArchetypeChunk<EntityStore>, store: Store<EntityStore>, commandBuffer: any, event: E): void
-    }
-  }
-  interface SystemComponentType<E extends Component<EntityStore>> {
-    refChange: {
-      query(): Query<EntityStore>
-      componentType(): ComponentType<EntityStore, E>
-      // any >>> CommandBuffer<EntityStore>
-      onComponentRemoved(ref: Ref<EntityStore>, component: E, store: Store<EntityStore>, commandBuffer: any): void
-      // any >>> CommandBuffer<EntityStore>
-      onComponentSet(ref: Ref<EntityStore>, valueComponent: E | null, component: E, store: Store<EntityStore>, commandBuffer: any): void
-      // any >>> CommandBuffer<EntityStore>
-      onComponentAdded(ref: Ref<EntityStore>, component: E, store: Store<EntityStore>, commandBuffer: any): void
-    }
-  }
 
   //
   // Command
@@ -424,68 +437,6 @@ declare global {
     withRequiredArg<D>(name: string, description: string, argType: ArgumentType<D>): RequiredArg<D>
     // TODO: add all with args
   }
-
-  type ArgTypeMap = {
-    'string': string
-    'integer': number
-    'float': number
-    'double': number
-    'boolean': boolean
-    'playerRef': PlayerRef
-    'playerUuid': string
-    'uuid': string
-    'gameMode': GameMode
-    'world': World
-  }
-  interface ArgDefinition {
-    name: string;
-    description: string;
-    type: keyof ArgTypeMap;
-    required?: boolean;
-    default?: boolean;
-    defaultValue?: any;
-    defaultValueDescription?: string;
-  }
-
-  type ExtractArgs<A extends readonly ArgDefinition[]> = {
-    [K in A[number] as K['name']]: ArgTypeMap[K['type']]
-  };
-
-  interface BaseCommandConfig<A extends readonly ArgDefinition[]> {
-    name: string;
-    description?: string;
-    requiresConfirmation?: boolean;
-    aliases?: string[];
-    permission?: string;
-    args?: A;
-    subCommands?: Record<string, CommandConfig<any>>;
-  }
-
-  interface AsyncCommandConfig<A extends readonly ArgDefinition[]> extends BaseCommandConfig<A> {
-    type?: "async";
-    execute: (context: CommandContext, args: ExtractArgs<A>) => void;
-  }
-
-  interface PlayerCommandConfig<A extends readonly ArgDefinition[]> extends BaseCommandConfig<A> {
-    type: "player";
-    execute: (
-      context: CommandContext,
-      args: ExtractArgs<A>,
-      store: Store<EntityStore>,
-      ref: Ref<EntityStore>,
-      playerRef: PlayerRef,
-      world: World
-    ) => void;
-  }
-
-  interface CollectionCommandConfig<A extends readonly ArgDefinition[]> extends BaseCommandConfig<A> {
-    type: "collection";
-  }
-
-  type CommandConfig<A extends readonly ArgDefinition[]> =
-    | AsyncCommandConfig<A>
-    | PlayerCommandConfig<A>
-    | CollectionCommandConfig<A>;
 
   //
   // Hytale
@@ -1017,6 +968,9 @@ declare module API {
     }) => void
   }
 
+  //
+  // create and createComponent
+  //
   interface ObjectFactoryMap {
     "uuid": [string, [string]]
 
@@ -1030,11 +984,158 @@ declare module API {
     'velocity': [Velocity, [Velocity] | [Vector3d] | []]
     "teleport": [Teleport, [World, Transform] | [World, Vector3d, Vector3d] | [Transform] | [Vector3d, Vector3d]]
   }
+
+  //
+  // Command
+  //
+  type ArgTypeMap = {
+    'string': string
+    'integer': number
+    'float': number
+    'double': number
+    'boolean': boolean
+    'playerRef': PlayerRef
+    'playerUuid': string
+    'uuid': string
+    'gameMode': GameMode
+    'world': World
+  }
+  interface ArgDefinition {
+    name: string;
+    description: string;
+    type: keyof ArgTypeMap;
+    required?: boolean;
+    default?: boolean;
+    defaultValue?: any;
+    defaultValueDescription?: string;
+  }
+
+  type ExtractArgs<A extends readonly ArgDefinition[]> = {
+    [K in A[number] as K['name']]: ArgTypeMap[K['type']]
+  };
+
+  interface BaseCommandConfig<A extends readonly ArgDefinition[]> {
+    name: string;
+    description?: string;
+    requiresConfirmation?: boolean;
+    aliases?: string[];
+    permission?: string;
+    args?: A;
+    subCommands?: Record<string, CommandConfig<any>>;
+  }
+
+  interface AsyncCommandConfig<A extends readonly ArgDefinition[]> extends BaseCommandConfig<A> {
+    type?: "async";
+    execute: (context: CommandContext, args: ExtractArgs<A>) => void;
+  }
+
+  interface PlayerCommandConfig<A extends readonly ArgDefinition[]> extends BaseCommandConfig<A> {
+    type: "player";
+    execute: (
+      context: CommandContext,
+      args: ExtractArgs<A>,
+      store: Store<EntityStore>,
+      ref: Ref<EntityStore>,
+      playerRef: PlayerRef,
+      world: World
+    ) => void;
+  }
+
+  interface CollectionCommandConfig<A extends readonly ArgDefinition[]> extends BaseCommandConfig<A> {
+    type: "collection";
+  }
+
+  type CommandConfig<A extends readonly ArgDefinition[]> =
+    | AsyncCommandConfig<A>
+    | PlayerCommandConfig<A>
+    | CollectionCommandConfig<A>;
+
+  //
+  // System
+  //
+  interface SystemType {
+    ticking: {
+      query(): Query<EntityStore>
+      tick(dt: number, index: number, store: Store<EntityStore>): void
+    },
+    entityTicking: {
+      query(): Query<EntityStore>
+      // any >>> CommandBuffer<EntityStore>
+      tick(dt: number, index: number, archetypeChunk: ArchetypeChunk<EntityStore>, store: Store<EntityStore>, commandBuffer: any): void
+    },
+    delayedEntity: {
+      intervalSec: number
+      query(): Query<EntityStore>
+      tick(dt: number, index: number, archetypeChunk: ArchetypeChunk<EntityStore>, store: Store<EntityStore>, commandBuffer: any): void
+    }
+  }
+  interface SystemEventType<E extends EcsEvent> {
+    entityEvent: {
+      query(): Query<EntityStore>
+      // any >>> CommandBuffer<EntityStore>
+      handle(index: number, archetypeChunk: ArchetypeChunk<EntityStore>, store: Store<EntityStore>, commandBuffer: any, event: E): void
+    }
+  }
+  interface SystemComponentType<E extends Component<EntityStore>> {
+    refChange: {
+      query(): Query<EntityStore>
+      componentType(): ComponentType<EntityStore, E>
+      // any >>> CommandBuffer<EntityStore>
+      onComponentRemoved(ref: Ref<EntityStore>, component: E, store: Store<EntityStore>, commandBuffer: any): void
+      // any >>> CommandBuffer<EntityStore>
+      onComponentSet(ref: Ref<EntityStore>, valueComponent: E | null, component: E, store: Store<EntityStore>, commandBuffer: any): void
+      // any >>> CommandBuffer<EntityStore>
+      onComponentAdded(ref: Ref<EntityStore>, component: E, store: Store<EntityStore>, commandBuffer: any): void
+    }
+  }
+
+  //
+  // Custom Component
+  //
+  type CompType = 'string' | 'integer' | 'float' | 'double' | 'boolean' | 'array';
+
+  type MapType<T extends CompType> =
+    T extends 'string' ? string :
+    T extends 'integer' ? number :
+    T extends 'float' ? number :
+    T extends 'double' ? number :
+    T extends 'boolean' ? boolean :
+    T extends 'array' ? any[] :
+    T extends 'any' ? any :
+    never;
+
+  type DataResult<D extends Record<string, [CompType, any]>> = {
+    [K in keyof D]: MapType<D[K][0]>
+  };
+
+  interface ComponentConfig<D extends Record<string, [CompType, any]>, Args extends any[]> {
+    data: D;
+    create: (...args: Args) => DataResult<D>;
+  }
+
+  interface CustomComponent<R, Args extends any[]> {
+    readonly type: ComponentType<EntityStore, Component<EntityStore>>;
+    create(...args: Args): R & Component<EntityStore>;
+  }
+
+  // test
+  type InferCompType<T> =
+    T extends string ? 'string' :
+    T extends boolean ? 'boolean' :
+    T extends number ? 'double' :
+    T extends any[] ? 'array' :
+    never;
+
+  type InferData<T extends Record<string, any>> = {
+    [K in keyof T]: [InferCompType<T[K]>, any]
+  };
+
+  // getPlayer()
   interface PlayerWrapper {
     getPlayerRef(): PlayerRef
     getPlayer(): Player
-    getRef(): Ref<EntityStore> | null
-    getStore(): Store<EntityStore> | null
+    getRef(): Ref<EntityStore>
+    getStore(): Store<EntityStore>
 
     getHealth(): number
     getWorld(): World
@@ -1043,6 +1144,7 @@ declare module API {
     getInventory(): Inventory
     getPacketHandler(): PacketHandler
 
+    getStats(): EntityStatMap | null
     addComponent<T extends Component<EntityStore>>(componentType: ComponentType<EntityStore, T>, component: T): void
     getComponent<T extends Component<EntityStore>>(componentType: ComponentType<EntityStore, T>): T
     sendMessage(message: string | Message): void
@@ -1083,6 +1185,13 @@ declare module API {
 
     addAdapterInbound(callback: (handler: PacketHandler, packet: Packet) => boolean | void): void
     addAdapterOutbound(callback: (handler: PacketHandler, packet: Packet) => boolean | void): void
+
+    // createCustomComponent<D extends Record<string, [CompType, any]>, A extends any[]>(config: ComponentConfig<D, A>): CustomComponent<DataResult<D>, A>;
+    createCustomComponent<
+      F extends (...args: any[]) => Record<string, any>,
+      R = ReturnType<F>, // @ts-ignore
+      D extends Record<string, [CompType, any]> = InferData<R>
+    >(factory: F): CustomComponent<DataResult<D>, Parameters<F>>;
 
     getPlayer(v: {
       playerRef?: PlayerRef

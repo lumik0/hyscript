@@ -1,6 +1,7 @@
 package me.euaek.api
 
 import com.hypixel.hytale.component.ArchetypeChunk
+import com.hypixel.hytale.component.Component
 import com.hypixel.hytale.component.Ref
 import com.hypixel.hytale.component.Store
 import com.hypixel.hytale.math.vector.Transform
@@ -24,20 +25,27 @@ import java.util.concurrent.CompletableFuture
 
 class ServerApi(private val plugin: Plugin) {
     private val logger = plugin.logger
+
+    val eventApi = EventApi(plugin)
     private val commandApi = CommandApi(plugin)
     private val systemApi = SystemApi(plugin)
     private val packetApi = PacketApi(plugin)
+    private val componentApi = ComponentApi(plugin)
 
     fun reload(){
+        eventApi.reload()
         commandApi.reload()
         systemApi.reload()
         packetApi.reload()
+        componentApi.reload()
     }
 
     fun shutdown(){
+        eventApi.shutdown()
         commandApi.shutdown()
         systemApi.shutdown()
         packetApi.shutdown()
+        componentApi.shutdown()
     }
 
     @HostAccess.Export
@@ -75,6 +83,11 @@ class ServerApi(private val plugin: Plugin) {
     @HostAccess.Export
     fun addAdapterOutbound(value: Value){
         packetApi.addAdapterOutbound(value)
+    }
+
+    @HostAccess.Export
+    fun createCustomComponent(value: Value): ComponentApi.CustomComponent {
+        return componentApi.createCustomComponent(value)
     }
 
     @HostAccess.Export
@@ -118,10 +131,61 @@ class ServerApi(private val plugin: Plugin) {
             else -> null
         }
     }
+//
+//    @HostAccess.Export
+//    fun getPlayer(v: Value): CompletableFuture<PlayerWrapper?> {
+//        val cf = CompletableFuture<PlayerWrapper?>()
+//        val universe = Universe.get()
+//
+//        var playerRef = if(v.hasMember("playerRef")) v.getMember("playerRef").asHostObject<PlayerRef>() else null
+//        var player = if(v.hasMember("player")) v.getMember("player").asHostObject<Player>() else null
+//        var store = if(v.hasMember("store")) v.getMember("store").asHostObject<Store<EntityStore>>() else null
+//        var ref = if(v.hasMember("ref")) v.getMember("ref").asHostObject<Ref<EntityStore>>() else null
+//        var world = if(v.hasMember("world")) v.getMember("world").asHostObject<World>() else null
+//        val uuid = if(v.hasMember("uuid")) v.getMember("uuid").asHostObject<UUID>() else null
+//        val commandContext = if(v.hasMember("commandContext")) v.getMember("commandContext").asHostObject<CommandContext>() else null
+//        val index = if(v.hasMember("index")) v.getMember("index").asInt() else null
+//        val archetypeChunk = if(v.hasMember("archetypeChunk")) v.getMember("archetypeChunk").asHostObject<ArchetypeChunk<EntityStore>>() else null
+//
+//        if(commandContext != null && commandContext.isPlayer && player == null) player = commandContext as Player
+//        if(uuid != null && playerRef == null) playerRef = universe.getPlayer(uuid)
+//        if(player != null && world == null) world = player.world
+//        if(playerRef != null && world == null && playerRef.worldUuid != null) world = universe.getWorld(playerRef.worldUuid!!)
+//        if(player != null && store == null) store = player.reference?.store
+//        if(playerRef != null && ref == null) ref = playerRef.reference
+//        if(ref != null && store == null) store = ref.store
+//
+//        if(archetypeChunk != null && index != null && ref == null) ref = archetypeChunk.getReferenceTo(index)
+//
+//        if(world == null) {
+//            if(playerRef != null && player != null) cf.complete(PlayerWrapper(playerRef, player, ref, store))
+//            else cf.complete(null)
+//            return cf
+//        }
+//
+//        world.execute {
+//            try {
+//                if(store != null && ref != null) {
+//                    if(playerRef == null) playerRef = store.getComponent(ref, PlayerRef.getComponentType())
+//                    if(player == null) player = store.getComponent(ref, Player.getComponentType())
+//                }
+//
+//                if(playerRef != null && player != null) {
+//                    cf.complete(PlayerWrapper(playerRef!!, player!!, ref, store))
+//                } else {
+//                    cf.complete(null)
+//                }
+//            } catch(e: Exception) {
+//                plugin.severe("❌ Error in getPlayer: ${e.message}")
+//                cf.complete(null)
+//            }
+//        }
+//
+//        return cf
+//    }
 
     @HostAccess.Export
-    fun getPlayer(v: Value): CompletableFuture<PlayerWrapper?> {
-        val cf = CompletableFuture<PlayerWrapper?>()
+    fun getPlayer(v: Value): PlayerWrapper? {
         val universe = Universe.get()
 
         var playerRef = if(v.hasMember("playerRef")) v.getMember("playerRef").asHostObject<PlayerRef>() else null
@@ -144,30 +208,15 @@ class ServerApi(private val plugin: Plugin) {
 
         if(archetypeChunk != null && index != null && ref == null) ref = archetypeChunk.getReferenceTo(index)
 
-        if(world == null) {
-            if(playerRef != null && player != null) cf.complete(PlayerWrapper(playerRef, player, ref, store))
-            else cf.complete(null)
-            return cf
+        if(store != null && ref != null) {
+            if(playerRef == null) playerRef = store.getComponent(ref, PlayerRef.getComponentType())
+            if(player == null) player = store.getComponent(ref, Player.getComponentType())
         }
 
-        world.execute {
-            try {
-                if(store != null && ref != null) {
-                    if(playerRef == null) playerRef = store.getComponent(ref, PlayerRef.getComponentType())
-                    if(player == null) player = store.getComponent(ref, Player.getComponentType())
-                }
-
-                if(playerRef != null && player != null) {
-                    cf.complete(PlayerWrapper(playerRef!!, player!!, ref, store))
-                } else {
-                    cf.complete(null)
-                }
-            } catch(e: Exception) {
-                plugin.severe("❌ Error in getPlayer: ${e.message}")
-                cf.complete(null)
-            }
+        if(playerRef != null && player != null && ref != null && store != null) {
+            return PlayerWrapper(playerRef, player, ref, store)
         }
 
-        return cf
+        return null
     }
 }

@@ -44,7 +44,9 @@ const transform = server.createComponent('transform', position, rotation);
 server.on("playerChat", async e => {
     const p = await server.getPlayer({ playerRef: e.sender })
     if(p) {
-        p.sendMessage("Привет из HyScript!");
+        p.sendMessage(`Привет ${p.getUsername()} из HyScript!`);
+        p.sendNotification("Добро пожаловать!");
+        p.health = 50;
         p.teleport(0, 100, 0);
     }
 });
@@ -61,6 +63,13 @@ server.on('playerConnect', (e) => {
     p?.sendNotification(`Привет, ${p.username}!`);
 });
 
+server.on("playerBreakBlock", e => {
+    e.player.sendMessage("Не ломай!");
+    e.isCancelled = true;
+});
+```
+
+```typescript
 const event =
     server.on('playerChat', (e) => {
         if(e.content == "ping") {
@@ -94,8 +103,8 @@ server.addCommand({
 });
 ```
 
+Команда только для игрока
 ```typescript
-// Команда только для игрока
 server.addPlayerCommand({
     name: "spawn",
     async execute(context, args, store, ref, playerRef, world) {
@@ -105,8 +114,8 @@ server.addPlayerCommand({
 });
 ```
 
+Команда с подкомандами
 ```typescript
-// Команда с подкомандами
 server.addCommandCollection({
     name: "script",
     type: "collection",
@@ -128,6 +137,7 @@ server.addCommandCollection({
 
 ### 🧬 Система Компонентов Сущностей (ECS)
 
+Event System
 ```typescript
 server.addEventSystem('entityEvent', BreakBlockEvent, {
     async handle(index, archetypeChunk, store, commandBuffer, event) {
@@ -143,6 +153,7 @@ server.addEventSystem('entityEvent', BreakBlockEvent, {
 });
 ```
 
+System
 ```typescript
 server.addSystem('ticking', {
     query() {
@@ -154,6 +165,7 @@ server.addSystem('ticking', {
 });
 ```
 
+Component System
 ```typescript
 server.addComponentSystem('refChange', Teleport, {
     query() {
@@ -181,24 +193,21 @@ const comp = server.createComponent('teleport', 0, 100, 0)
 player.addComponent(Teleport.getComponentType(), comp);
 ```
 
+Кастомный компонент
 ```typescript
-const customComp = server.addComponent({
-    data: {
-        // [type, defaultValue]
-        str: ['string', 'default value'],
-        int: ['integer', 4],
-        float: ['float', 3.2]
-    },
-    create(str: string, int: number, float: number){
-        return {
-            str,
-            int,
-            float
-        }
+const customComp = server.createCustomComponent((str: string, lvl: number, xp: number) =>
+    return {
+        text: test,
+        level: lvl,
+        xp,
+        test: lvl + xp
     }
 });
 
-player.addComponent(customComp.type, customComp.create("str", 0, 1));
+const comp = customComp.create("str", 1, 1.3);
+comp.text // "str"
+comp.test // 2.3
+player.addComponent(customComp.type, comp);
 ```
 
 ### 📥 Слушатели пакетов
@@ -216,3 +225,7 @@ server.addAdapterOutbound((packetHandler, packet) => {
     }
 });
 ```
+
+### 🖼️ Интерфейс (UI)
+
+Скоро...

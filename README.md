@@ -1,6 +1,20 @@
-# **HyScript**
+<p align="center">
+    <b style="font-size: 32px">HyScript</b>
+    <br>
+    <b>Powerful JavaScript/TypeScript scripting engine for Hytale servers</b>
+    <br>
+    <a href="https://github.com/MarshalX/atproto/blob/main/examples">Examples</a>
+    •
+    <a href="https://github.com/MarshalX/atproto/blob/main/DOCUMENTATION_EN.md">Documentation</a>
+    •
+    <a href="https://github.com/lumik0/hyscript/releases/latest/total">Latest release</a>
+</p>
 
-<p style="padding-left:40px">Powerful JavaScript/TypeScript scripting engine for Hytale servers</p>
+<p>
+    <a title="Curseforge" target="_blank" href="https://www.curseforge.com/hytale/hyscript"><img src="https://cf.way2muchnoise.eu/1435060.svg?badge_style=flat" /></a>
+    <a title="License" target="_blank" href="https://github.com/lumik0/hyscript/blob/master/LICENSE"><img 
+src="https://img.shields.io/badge/license-MIT-900c3f" /></a>
+</p>
 
 **HyScript** is a dedicated scripting solution for Hytale, designed to make server-side development fast and accessible. It allows server owners and developers to create complex gameplay logic, custom mini-games, and automation tools using JavaScript or TypeScript, eliminating the need for complex modding setups and long compilation times.
 
@@ -16,5 +30,3 @@
 ### Documentation
 [<img height="20" src="images/english.png" width="35" />](DOCUMENTATION_EN.MD)
 [<img height="20" src="images/russian.png" width="35" />](DOCUMENTATION_RU.MD)
-
-Curseforge: https://www.curseforge.com/hytale/mods/hyscript

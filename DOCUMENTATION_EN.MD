@@ -43,7 +43,9 @@ The server.getPlayer(...) method allows you to get a wrapper over the player, wh
 server.on("playerChat", async e => {
     const p = await server.getPlayer({ playerRef: e.sender })
     if(p) {
-        p.sendMessage("Hello from HyScript!");
+        p.sendMessage(`Hello ${p.getUsername()} from HyScript!`);
+        p.sendNotification("Welcome!");
+        p.health = 50;
         p.teleport(0, 100, 0);
     }
 });
@@ -60,6 +62,13 @@ server.on('playerConnect', (e) => {
     p?.sendNotification(`Hello, ${p.username}!`);
 });
 
+server.on("playerBreakBlock", e => {
+    e.player.sendMessage("Don't break!");
+    e.isCancelled = true;
+});
+```
+
+```typescript
 const event =
     server.on('playerChat', (e) => {
         if(e.content == "ping") {
@@ -93,8 +102,8 @@ server.addCommand({
 });
 ```
 
+Command for player only
 ```typescript
-// Command for player only
 server.addPlayerCommand({
     name: "spawn",
     async execute(context, args, store, ref, playerRef, world) {
@@ -104,8 +113,8 @@ server.addPlayerCommand({
 });
 ```
 
+A command with subcommands
 ```typescript
-// A command with subcommands
 server.addCommandCollection({
     name: "script",
     type: "collection",
@@ -127,6 +136,7 @@ server.addCommandCollection({
 
 ### 🧬 Entity Component System (ECS)
 
+Event System
 ```typescript
 server.addEventSystem('entityEvent', BreakBlockEvent, {
     async handle(index, archetypeChunk, store, commandBuffer, event) {
@@ -142,6 +152,7 @@ server.addEventSystem('entityEvent', BreakBlockEvent, {
 });
 ```
 
+System
 ```typescript
 server.addSystem('ticking', {
     query() {
@@ -153,6 +164,7 @@ server.addSystem('ticking', {
 });
 ```
 
+ComponentSystem
 ```typescript
 server.addComponentSystem('refChange', Teleport, {
     query() {
@@ -180,24 +192,21 @@ const comp = server.createComponent('teleport', 0, 100, 0)
 player.addComponent(Teleport.getComponentType(), comp);
 ```
 
+Custom Component
 ```typescript
-const customComp = server.addComponent({
-    data: {
-        // [type, defaultValue]
-        str: ['string', 'default value'],
-        int: ['integer', 4],
-        float: ['float', 3.2]
-    },
-    create(str: string, int: number, float: number){
-        return {
-            str,
-            int,
-            float
-        }
+const customComp = server.createCustomComponent((str: string, lvl: number, xp: number) =>
+    return {
+        text: test,
+        level: lvl,
+        xp,
+        test: lvl + xp
     }
 });
 
-player.addComponent(customComp.type, customComp.create("str", 0, 1));
+const comp = customComp.create("str", 1, 1.3);
+comp.text // "str"
+comp.test // 2.3
+player.addComponent(customComp.type, comp);
 ```
 
 ### 📥 Packet listeners
@@ -215,3 +224,7 @@ server.addAdapterOutbound((packetHandler, packet) => {
     }
 });
 ```
+
+### 🖼️ UI
+
+Coming soon...

@@ -37,6 +37,10 @@ export default class Server extends Events {
     return nativeServer.addAdapterOutbound(callback);
   }
 
+  createCustomComponent(config: any) {
+    return nativeServer.createCustomComponent(config);
+  }
+
   getPlayer(v: any) {
     return nativeServer.getPlayer(v);
   }

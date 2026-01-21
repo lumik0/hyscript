@@ -173,11 +173,15 @@ class Server extends Events {
   addAdapterOutbound(callback) {
     return nativeServer.addAdapterOutbound(callback);
   }
+  createCustomComponent(config) {
+    return nativeServer.createCustomComponent(config);
+  }
   getPlayer(v) {
     return nativeServer.getPlayer(v);
   }
 }
 
 // src/main/resources/sdk/main.ts
+["com.hypixel.hytale.math.vector.Transform", "com.hypixel.hytale.component.Component", "com.hypixel.hytale.component.ComponentType", "com.hypixel.hytale.component.Ref", "com.hypixel.hytale.component.Holder", "com.hypixel.hytale.component.Store", "com.hypixel.hytale.server.core.universe.world.storage.EntityStore", "com.hypixel.hytale.component.ComponentAccessor", "com.hypixel.hytale.component.query.Query", "com.hypixel.hytale.component.query.NotQuery", "com.hypixel.hytale.component.query.AndQuery", "com.hypixel.hytale.component.query.OrQuery", "com.hypixel.hytale.component.Archetype", "com.hypixel.hytale.component.query.ExactArchetypeQuery", "com.hypixel.hytale.component.system.EcsEvent", "com.hypixel.hytale.component.system.CancellableEcsEvent", "com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent", "com.hypixel.hytale.server.core.modules.entity.component.TransformComponent", "com.hypixel.hytale.server.core.modules.physics.component.Velocity", "com.hypixel.hytale.server.core.modules.entity.teleport.Teleport", "com.hypixel.hytale.server.core.command.system.CommandSender", "com.hypixel.hytale.server.core.command.system.CommandContext", "com.hypixel.hytale.server.core.command.system.arguments.types.ArgumentType", "com.hypixel.hytale.server.core.command.system.arguments.system.Argument", "com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg", "com.hypixel.hytale.server.core.command.system.AbstractCommand", "com.hypixel.hytale.server.core.universe.Universe", "com.hypixel.hytale.server.core.universe.world.World", "com.hypixel.hytale.server.core.universe.playerdata.PlayerStorage", "com.hypixel.hytale.protocol.Packet", "com.hypixel.hytale.server.core.Message", "com.hypixel.hytale.protocol.GameMode", "com.hypixel.hytale.server.core.io.PacketHandler", "com.hypixel.hytale.server.core.util.EventTitleUtil", "com.hypixel.hytale.server.core.util.NotificationUtil", "com.hypixel.hytale.server.core.universe.world.WorldConfig", "com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig", "com.hypixel.hytale.server.core.universe.PlayerRef", "com.hypixel.hytale.server.core.entity.Entity", "com.hypixel.hytale.server.core.entity.LivingEntity", "com.hypixel.hytale.server.core.entity.entities.Player", "com.hypixel.hytale.server.core.asset.type.item.config.Item", "com.hypixel.hytale.server.core.inventory.ItemStack", "com.hypixel.hytale.server.core.inventory.Inventory", "com.hypixel.hytale.server.core.inventory.container.ItemContainer", "com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap"].forEach((e) => globalThis[e.split(".").pop()] = Java.type(e));
 var server = new Server;
 globalThis.server = server;

@@ -15,7 +15,10 @@ import com.hypixel.hytale.server.core.entity.entities.Player
 import com.hypixel.hytale.server.core.inventory.ItemStack
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent
 import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport
+import com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap
+import com.hypixel.hytale.server.core.modules.entitystats.asset.DefaultEntityStatTypes
 import com.hypixel.hytale.server.core.universe.PlayerRef
+import com.hypixel.hytale.server.core.universe.Universe
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.hypixel.hytale.server.core.util.EventTitleUtil
@@ -29,15 +32,15 @@ import java.util.concurrent.CompletableFuture
 class PlayerWrapper(
     private val playerRef: PlayerRef,
     private val player: Player,
-    private val ref: Ref<EntityStore>? = player.reference,
-    private val store: Store<EntityStore>? = ref?.store
+    private val ref: Ref<EntityStore>,
+    private val store: Store<EntityStore>
 ) {
-//    var health: Float
-//        @HostAccess.Export get() = player.health
-//        @HostAccess.Export set(value) { player.health = value }
+    var health: Float?
+        @HostAccess.Export get() = getStats()?.get(DefaultEntityStatTypes.getHealth())?.get()
+        @HostAccess.Export set(value) { if(value != null) getStats()?.setStatValue(DefaultEntityStatTypes.getHealth(), value) }
 
     @HostAccess.Export
-    val world = player.world
+    val world: World = if(player.world != null) player.world!! else Universe.get().defaultWorld!!
     @HostAccess.Export
     val username = playerRef.username
     @HostAccess.Export
@@ -48,16 +51,19 @@ class PlayerWrapper(
     val packetHandler = playerRef.packetHandler
 
     @HostAccess.Export
+    fun getStats(): EntityStatMap? = store.getComponent(ref, EntityStatMap.getComponentType())
+
+    @HostAccess.Export
     fun addComponent(componentType: Value, componentValue: Value) {
         val type = if(componentType.isHostObject) componentType.asHostObject<ComponentType<EntityStore, Component<EntityStore>>>() else null
         val value = if(componentValue.isHostObject) componentValue.asHostObject<Component<EntityStore>>() else null
-        if(type == null || value == null || ref == null || store == null || world == null) return
+        if(type == null || value == null ) return
         return store.addComponent(ref, type, value)
     }
     @HostAccess.Export
     fun getComponent(componentType: Value): Any? {
         val type = if(componentType.isHostObject) componentType.asHostObject<ComponentType<EntityStore, out Component<EntityStore>>>() else null
-        if(type == null || ref == null || store == null) return null
+        if(type == null) return null
         return store.getComponent(ref, type)
     }
 
@@ -89,23 +95,24 @@ class PlayerWrapper(
 
     @HostAccess.Export
     fun teleport(x: Double, y: Double, z: Double, yaw: Float?, pitch: Float?) {
-        if(ref != null) {
-            world?.execute {
-                val teleport = if(yaw != null && pitch != null) Teleport(Vector3d(x, y, z), Vector3f(yaw, pitch)) else Teleport(Transform(x, y, z))
+        val tel = {
+            val teleport = if(yaw != null && pitch != null) Teleport(Vector3d(x, y, z), Vector3f(yaw, pitch)) else Teleport(Transform(x, y, z))
 
-                store?.addComponent(ref, Teleport.getComponentType(), teleport)
-            }
+            store.addComponent(ref, Teleport.getComponentType(), teleport)
         }
+
+        if(!world.isInThread) world.execute(tel)
+        else tel()
     }
     @HostAccess.Export
     fun teleport(v: Vector3d, r: Vector3f?) {
-        if(ref != null) {
-            world?.execute {
-                val teleport = if(r != null) Teleport(world, v, r) else Teleport(world, Transform(v))
+        val tel = {
+            val teleport = if(r != null) Teleport(world, v, r) else Teleport(world, Transform(v))
 
-                store?.addComponent(ref, Teleport.getComponentType(), teleport)
-            }
+            store.addComponent(ref, Teleport.getComponentType(), teleport)
         }
+        if(!world.isInThread) world.execute(tel)
+        else tel()
     }
 
     @HostAccess.Export
@@ -118,19 +125,16 @@ class PlayerWrapper(
     fun getPosition(): Vector3d? = getComponent(TransformComponent.getComponentType())?.position
     @HostAccess.Export
     fun setPosition(value: Vector3d?) {
-        if(value == null || ref == null || store == null || world == null) return
+        if(value == null) return
         store.getComponent(ref, TransformComponent.getComponentType())?.position = value
     }
     @HostAccess.Export
     fun getRotation(): Vector3f? = getComponent(TransformComponent.getComponentType())?.rotation
     @HostAccess.Export
     fun setRotation(value: Vector3f?) {
-        if(value == null || ref == null || store == null || world == null) return
+        if(value == null) return
         store.getComponent(ref, TransformComponent.getComponentType())?.rotation = value
     }
 
-    private fun <T : Component<EntityStore>> getComponent(componentType: ComponentType<EntityStore, T>): T? {
-        if(ref == null || store == null || world == null) return null
-        return store.getComponent(ref, componentType)
-    }
+    private fun <T : Component<EntityStore>> getComponent(componentType: ComponentType<EntityStore, T>): T? = store.getComponent(ref, componentType)
 }

@@ -2,11 +2,13 @@ package me.euaek
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.hypixel.hytale.event.EventPriority
 import java.io.File
 
 data class Config(
     var isHotReloadEnabled: Boolean = true,
-    var typescript: Boolean = true
+    var enableTypescript: Boolean = true,
+    var eventPriority: EventPriority = EventPriority.LATE
 )
 
 class ConfigManager(private val plugin: Plugin, private val configFile: File) {
