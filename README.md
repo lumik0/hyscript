@@ -3,9 +3,9 @@
     <br>
     <b>Powerful JavaScript/TypeScript scripting engine for Hytale servers</b>
     <br>
-    <a href="https://github.com/MarshalX/atproto/blob/main/examples">Examples</a>
+    <a href="https://github.com/lumik0/hyscript/blob/main/examples">Examples</a>
     •
-    <a href="https://github.com/MarshalX/atproto/blob/main/DOCUMENTATION_EN.md">Documentation</a>
+    <a href="https://github.com/lumik0/hyscript/blob/main/DOCUMENTATION_EN.md">Documentation</a>
     •
     <a href="https://github.com/lumik0/hyscript/releases/latest/total">Latest release</a>
 </p>
