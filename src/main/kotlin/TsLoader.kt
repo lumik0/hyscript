@@ -2,18 +2,34 @@ package me.euaek
 
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.universe.Universe
-import org.graalvm.polyglot.Context
-import org.graalvm.polyglot.HostAccess
-import org.graalvm.polyglot.Source
-import org.graalvm.polyglot.Value
+import org.graalvm.polyglot.*
 import java.io.File
+import java.net.URI
 import java.nio.file.*
 import java.util.*
 import kotlin.concurrent.thread
 
+object GlobalGraalEngine {
+    val hostAccess: HostAccess = HostAccess.newBuilder(HostAccess.ALL)
+        .allowAccessAnnotatedBy(HostAccess.Export::class.java)
+        .allowPublicAccess(true)
+        .targetTypeMapping(
+            UUID::class.java,
+            String::class.java,
+            { it != null },
+            { it.toString() }
+        )
+        .build()
+
+    val engine: Engine by lazy {
+        Engine.create()
+    }
+}
+
 class TsLoader(private val plugin: Plugin) {
     private val logger = plugin.logger
 
+    private val engine get() = GlobalGraalEngine.engine
     private var context: Context? = null
 
     private val scriptsDir = File(plugin.dataDirectory.toFile(), "scripts")
@@ -23,6 +39,7 @@ class TsLoader(private val plugin: Plugin) {
     private var transpiler = TranspilerType.NONE
 
     private var threadWatcher: Thread? = null
+    private var watchService: WatchService? = null
 
     val server: Value?
         get() = context?.getBindings("js")?.getMember("server")
@@ -30,27 +47,68 @@ class TsLoader(private val plugin: Plugin) {
     private fun copyResources(resourcePath: String, targetDir: Path) {
         if(!Files.exists(targetDir)) Files.createDirectories(targetDir)
 
-        val uri = plugin.javaClass.getResource(resourcePath)?.toURI() ?: return
+        val root = plugin.javaClass.getResource(resourcePath) ?: return
+        val uri = root.toURI()
 
-        val fileSystem = if(uri.scheme == "jar") {
-            try { FileSystems.getFileSystem(uri) }
-            catch(e: Exception) { FileSystems.newFileSystem(uri, Collections.emptyMap<String, Any>()) }
-        } else null
+        if(uri.scheme == "jar") {
+            val jarPath = uri.schemeSpecificPart.substringBefore("!")
+            val jarFile = java.util.jar.JarFile(Paths.get(URI(jarPath)).toFile())
 
-        val sourcePath = fileSystem?.getPath(resourcePath) ?: Paths.get(uri)
+            jarFile.use { jar ->
+                val entries = jar.entries()
+                while(entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    if(!entry.name.startsWith(resourcePath.removePrefix("/"))) continue
+                    if(entry.isDirectory) continue
 
-        Files.walk(sourcePath).forEach { path ->
-            val relative = sourcePath.relativize(path).toString()
-            if(relative.isEmpty()) return@forEach
+                    val relative = entry.name.removePrefix(resourcePath.removePrefix("/") + "/")
+                    val dest = targetDir.resolve(relative)
 
-            val dest = targetDir.resolve(relative)
-            if(Files.isDirectory(path)) {
-                if(!Files.exists(dest)) Files.createDirectories(dest)
-            } else {//if(!Files.exists(dest)) {
-                Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING)
+                    Files.createDirectories(dest.parent)
+
+                    jar.getInputStream(entry).use { input ->
+                        Files.copy(input, dest, StandardCopyOption.REPLACE_EXISTING)
+                    }
+                }
+            }
+        } else {
+            Files.walk(Paths.get(uri)).forEach { path ->
+                val relative = Paths.get(uri).relativize(path).toString()
+                if(relative.isEmpty()) return@forEach
+
+                val dest = targetDir.resolve(relative)
+                if(Files.isDirectory(path)) {
+                    Files.createDirectories(dest)
+                } else {
+                    Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING)
+                }
             }
         }
     }
+    //    private fun copyResources(resourcePath: String, targetDir: Path) {
+//        if(!Files.exists(targetDir)) Files.createDirectories(targetDir)
+//
+//        val uri = plugin.javaClass.getResource(resourcePath)?.toURI() ?: return
+//
+//        val fileSystem = if(uri.scheme == "jar") {
+//            try { FileSystems.getFileSystem(uri) }
+//            catch(e: Exception) { FileSystems.newFileSystem(uri, Collections.emptyMap<String, Any>()) }
+//        } else null
+//
+//        val sourcePath = fileSystem?.getPath(resourcePath) ?: Paths.get(uri)
+//
+//        Files.walk(sourcePath).forEach { path ->
+//            val relative = sourcePath.relativize(path).toString()
+//            if(relative.isEmpty()) return@forEach
+//
+//            val dest = targetDir.resolve(relative)
+//            if(Files.isDirectory(path)) {
+//                if(!Files.exists(dest)) Files.createDirectories(dest)
+//            } else {//if(!Files.exists(dest)) {
+//                Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING)
+//            }
+//        }
+//    }
 
     fun setup() {
         if(!scriptsDir.exists()) scriptsDir.mkdirs()
@@ -72,6 +130,12 @@ class TsLoader(private val plugin: Plugin) {
         if(cfg.isHotReloadEnabled) {
             startWatcher()
         }
+    }
+
+    fun shutdown() {
+        stopWatcher()
+        context?.close()
+        context = null
     }
 
     private fun checkTranspilers(ctx: CommandContext? = null) {
@@ -161,19 +225,9 @@ class TsLoader(private val plugin: Plugin) {
             context?.close()
 
             // 1. context
-            val hostAccess = HostAccess.newBuilder(HostAccess.ALL)
-                .allowAccessAnnotatedBy(HostAccess.Export::class.java)
-                .allowPublicAccess(true)
-                .targetTypeMapping(
-                    java.util.UUID::class.java,
-                    String::class.java,
-                    { it != null },
-                    { it.toString() }
-                )
-                .build()
-
             context = Context.newBuilder("js")
-                .allowHostAccess(hostAccess)
+                .engine(engine)
+                .allowHostAccess(GlobalGraalEngine.hostAccess)
                 .allowHostClassLookup { true }
                 .build()
 
@@ -235,34 +289,41 @@ class TsLoader(private val plugin: Plugin) {
     }
 
     private fun startWatcher() {
-        threadWatcher?.interrupt()
-        threadWatcher = thread(isDaemon = true) {
-            val watcher = FileSystems.getDefault().newWatchService()
-            scriptsDir.toPath().register(watcher, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_CREATE)
+        stopWatcher()
 
-            while(true) {
-                if(!plugin.configManager.current.isHotReloadEnabled) {
-                    plugin.info("⭕ [Hyscript] Hot Reload disabled, stopping watcher...")
-                    break
+        watchService = FileSystems.getDefault().newWatchService()
+        scriptsDir.toPath().register(
+            watchService,
+            StandardWatchEventKinds.ENTRY_MODIFY,
+            StandardWatchEventKinds.ENTRY_CREATE
+        )
+
+        threadWatcher = thread(isDaemon = true, name = "HyScript-Watcher") {
+            try {
+                while(plugin.configManager.current.isHotReloadEnabled) {
+                    val key = watchService?.take() ?: break
+
+                    val shouldReload = key.pollEvents().any {
+                        val name = it.context().toString()
+                        (name.endsWith(".js") || name.endsWith(".ts")) && !name.startsWith("~")
+                    }
+
+                    if(shouldReload) {
+                        Thread.sleep(150)
+                        plugin.info("🔄 [Hyscript] Changes detected, reloading...")
+                        load()
+                    }
+
+                    if(!key.reset()) break
                 }
-
-                val key = watcher.take()
-                val events = key.pollEvents()
-
-                val shouldReload = events.any {
-                    val name = it.context().toString()
-                    (name.endsWith(".js") || name.endsWith(".ts")) && !name.startsWith("~")
-                }
-
-                if(shouldReload) {
-                    Thread.sleep(150)
-                    plugin.info("🔄 [Hyscript] Changes detected, reloading engine...")
-                    load()
-                    Thread.sleep(150)
-                }
-
-                if(!key.reset()) break
-            }
+            } catch(_: InterruptedException) {}
         }
+    }
+
+    private fun stopWatcher() {
+        try { watchService?.close() } catch(_: Exception) {}
+        threadWatcher?.interrupt()
+        watchService = null
+        threadWatcher = null
     }
 }

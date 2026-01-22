@@ -1114,7 +1114,7 @@ declare module API {
   }
 
   interface CustomComponent<R, Args extends any[]> {
-    readonly type: ComponentType<EntityStore, Component<EntityStore>>;
+    getType(): ComponentType<EntityStore, Component<EntityStore>>;
     create(...args: Args): R & Component<EntityStore>;
   }
 

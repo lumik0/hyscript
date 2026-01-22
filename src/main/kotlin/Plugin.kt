@@ -14,17 +14,17 @@ class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
         lateinit var instance: Plugin
     }
 
-    lateinit var serverApi: ServerApi
     lateinit var configManager: ConfigManager
+    lateinit var serverApi: ServerApi
     lateinit var tsLoader: TsLoader
 
     override fun setup() {
         instance = this
 
-        serverApi = ServerApi(this)
-
         configManager = ConfigManager(this, File(dataDirectory.toFile(), "config.json"))
         configManager.load()
+
+        serverApi = ServerApi(this)
 
         tsLoader = TsLoader(this)
         tsLoader.setup()
@@ -39,6 +39,7 @@ class Plugin(@Nonnull init: JavaPluginInit) : JavaPlugin(init) {
     override fun shutdown() {
         logger.atInfo().log("Plugin shutting down!")
 
+        tsLoader.shutdown()
         serverApi.shutdown()
     }
 

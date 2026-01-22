@@ -194,7 +194,7 @@ player.addComponent(Teleport.getComponentType(), comp);
 
 Custom Component
 ```typescript
-const customComp = server.createCustomComponent((str: string, lvl: number, xp: number) =>
+const customComp = server.createCustomComponent((str: string, lvl: number, xp: number) => {
     return {
         text: test,
         level: lvl,

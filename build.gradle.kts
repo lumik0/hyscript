@@ -28,9 +28,9 @@ dependencies {
 
     implementation("curse.maven:hyui-1431415:7479623")
 
-    implementation("org.graalvm.polyglot:polyglot:23.1.2")
-    implementation("org.graalvm.polyglot:js:23.1.2")
-    implementation("org.graalvm.truffle:truffle-api:23.1.2")
+    implementation("org.graalvm.polyglot:polyglot:24.1.2")
+    implementation("org.graalvm.polyglot:js:24.1.2")
+    implementation("org.graalvm.truffle:truffle-api:24.1.2")
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")

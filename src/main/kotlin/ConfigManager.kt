@@ -1,5 +1,6 @@
 package me.euaek
 
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.hypixel.hytale.event.EventPriority
@@ -13,6 +14,7 @@ data class Config(
 
 class ConfigManager(private val plugin: Plugin, private val configFile: File) {
     private val mapper = jacksonObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     var isNew = false
     var current = Config()
 
@@ -23,7 +25,11 @@ class ConfigManager(private val plugin: Plugin, private val configFile: File) {
             return
         }
         try {
-            current = mapper.readValue(configFile)
+            val loaded: Config = mapper.readValue(configFile)
+
+            current = loaded
+
+            save()
         } catch(e: Exception) {
             plugin.logger.atSevere().log("❌ Failed to load config: ${e.message}")
         }

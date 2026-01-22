@@ -26,14 +26,13 @@ import java.util.concurrent.CompletableFuture
 class ServerApi(private val plugin: Plugin) {
     private val logger = plugin.logger
 
-    val eventApi = EventApi(plugin)
     private val commandApi = CommandApi(plugin)
     private val systemApi = SystemApi(plugin)
     private val packetApi = PacketApi(plugin)
     private val componentApi = ComponentApi(plugin)
+    val eventApi = EventApi(plugin)
 
     fun reload(){
-        eventApi.reload()
         commandApi.reload()
         systemApi.reload()
         packetApi.reload()
@@ -41,7 +40,6 @@ class ServerApi(private val plugin: Plugin) {
     }
 
     fun shutdown(){
-        eventApi.shutdown()
         commandApi.shutdown()
         systemApi.shutdown()
         packetApi.shutdown()

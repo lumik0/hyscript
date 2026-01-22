@@ -42,21 +42,21 @@ class HyscriptCommand : AbstractCommandCollection("hyscript", "Hyscript") {
             Plugin.instance.tsLoader.reload(context)
             context.sendMessage(Message.raw("Reloaded scripts"))
 
-//            val html = """
-//<div class="page-overlay">
-//    <div class="container" data-hyui-title="Settings">
-//        <p>Welcome to the menu!</p>
-//        <button id="myBtn">Click Me</button>
-//    </div>
-//</div>
-//"""
-//
-//            PageBuilder.detachedPage()
-//                .fromHtml(html)
-//                .addEventListener("myBtn", CustomUIEventBindingType.Activating) { ctx ->
-//                    playerRef.sendMessage(Message.raw("Clicked! $ctx"));
-//                }
-//                .open(playerRef, store);
+            val html = """
+<div class="page-overlay">
+    <div class="container" data-hyui-title="Settings">
+        <p>Welcome to the menu!</p>
+        <button id="myBtn">Click Me</button>
+    </div>
+</div>
+"""
+
+            PageBuilder.detachedPage()
+                .fromHtml(html)
+                .addEventListener("myBtn", CustomUIEventBindingType.Activating) { ctx ->
+                    playerRef.sendMessage(Message.raw("Clicked! $ctx"));
+                }
+                .open(playerRef, store);
         }
     }
 }

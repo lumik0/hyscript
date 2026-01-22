@@ -51,11 +51,14 @@ class ComponentApi(private val plugin: Plugin) {
             override fun cloneSerializable(): JsComponent = clone()
 
             override fun getMember(key: String): Any? {
-                val selfValue = data.context.asValue(this)
-                if(selfValue.hasMember(key)) return selfValue.getMember(key)
-
-                val member = data.getMember(key)
-                return if(member == null || member.isNull) null else member
+                return when(key) {
+                    "clone" -> data.context.asValue { clone() }
+                    "cloneSerializable" -> data.context.asValue { cloneSerializable() }
+                    else -> {
+                        val member = data.getMember(key)
+                        if(member == null || member.isNull) null else member
+                    }
+                }
             }
 
             override fun putMember(key: String, value: Value?) {
@@ -63,7 +66,10 @@ class ComponentApi(private val plugin: Plugin) {
             }
 
             override fun hasMember(key: String): Boolean {
-                return data.context.asValue(this).hasMember(key) || data.hasMember(key)
+                return when(key) {
+                    "clone", "cloneSerializable" -> true
+                    else -> data.hasMember(key)
+                }
             }
 
             override fun getMemberKeys(): Any {
